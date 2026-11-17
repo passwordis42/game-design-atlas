@@ -3,6 +3,8 @@ import test from 'node:test';
 import { weeks } from '../docs/data/curriculum.js';
 import { lessons } from '../docs/data/lessons.js';
 import { calculateBudget, funnelNumbers, jumpSucceeds, labLabels } from '../docs/labs.js';
+import { initialPrototypeState, runPrototypeEvent } from '../docs/prototype-lab.js';
+import { analyzePracticeLog } from '../docs/research-lab.js';
 import { cleanRecords, emptyRecord, mergeWeek } from '../docs/records.js';
 import { canFinish, cleanStudy, hasStudy, lessonSteps } from '../docs/study-progress.js';
 
@@ -56,7 +58,9 @@ test('lessons order explanation, example, optional known lab, practice, and chec
       usedLabs.add(lesson.lab);
       expected.push('lab');
     }
-    assert.deepEqual(lessonSteps(lesson).map(({ id }) => id), [...expected, 'practice', 'check']);
+    expected.push('practice');
+    if (lesson.checkpoint) expected.push('project');
+    assert.deepEqual(lessonSteps(lesson).map(({ id }) => id), [...expected, 'check']);
   }
   assert.deepEqual([...usedLabs].sort(), Object.keys(labLabels).sort());
 });
@@ -70,6 +74,48 @@ test('supply arrives before demand and a zero ending stock can still mean full s
     { round: 1, stock: 2, shortage: 0 },
     { round: 2, stock: 4, shortage: 0 },
   ]);
+});
+
+test('stage projects require tangible evidence and transfer to a different context', () => {
+  assert.deepEqual(Object.keys(lessons).filter((id) => lessons[id].checkpoint), ['4', '8', '15', '28']);
+  for (const { checkpoint } of Object.values(lessons).filter((lesson) => lesson.checkpoint)) {
+    assertText(checkpoint.artifact, 'artifact');
+    assert.equal(checkpoint.checks.length, 3);
+    assertText(checkpoint.transfer, 'transfer');
+  }
+});
+
+test('prototype rule distinguishes approach from interaction, boundary, failure, and reset', () => {
+  let state = initialPrototypeState();
+  const rules = { pickupTrigger: 'interact', distanceComparison: 'inclusive', pickupDistance: 40, pickupPhase: 'playing', pickupAction: 'collect', doorCondition: 'requires-box', doorAction: 'open', resetBox: true, resetCount: true, resetDoor: true };
+  const act = (type, distance) => { state = runPrototypeEvent(state, rules, { type, distance }).state; };
+  act('approach', 41);
+  act('interact');
+  assert.equal(state.count, 0);
+  act('approach', 40);
+  assert.equal(state.count, 0);
+  act('interact');
+  assert.equal(state.count, 1);
+  act('interact');
+  assert.equal(state.count, 1);
+  act('door');
+  act('exit');
+  assert.equal(state.phase, 'complete');
+  act('restart');
+  assert.deepEqual(state, initialPrototypeState());
+  act('approach', 39);
+  act('fail');
+  act('interact');
+  assert.equal(state.count, 0);
+});
+
+test('raw event exercise separates duplicates, repeat runs, assistance, and unknown endings', () => {
+  const all = analyzePracticeLog({ version: 'A', unit: 'session', deduplicate: true });
+  const first = analyzePracticeLog({ version: 'A', unit: 'first', deduplicate: true });
+  assert.deepEqual(all, { starts: 5, independent: 2, assisted: 1, exited: 1, unknown: 1, pickups: 4 });
+  assert.deepEqual(first, { starts: 4, independent: 1, assisted: 1, exited: 1, unknown: 1, pickups: 3 });
+  assert.equal(analyzePracticeLog({ version: 'A', unit: 'first', deduplicate: false }).pickups, 4);
+  assert.equal(analyzePracticeLog({ version: 'B', unit: 'first', deduplicate: true }).starts, 1);
 });
 
 test('a jump at the grace boundary succeeds while a later input fails', () => {

@@ -116,7 +116,7 @@ export const weeks = [
     exercise: '用占位素材表示危险将发生、操作成功、状态改变。分别在有声与静音条件下观察玩家是否及时读懂。',
     acceptance: '记录发现与漏看。修正一处被背景、位置或其他反馈遮盖的信号。',
     evidence: '记录一种被忽略的反馈、出现条件，以及玩家何时发现自己错过了它。',
-    resources: [{ title: 'GDC · 用特效表达玩法', url: 'https://media.gdcvault.com/GDC%2B2022/Speaker%2BSlides/VFXasagamedesignlanguage_Nguyen_An-Tim.pdf' }],
+    resources: [{ title: 'GDC · 用特效表达玩法', url: 'https://www.gdcvault.com/play/1027899/Visual-Effects-Summit-VFX-as' }],
   },
   {
     id: 14, phase: 3, title: '首轮关卡试玩',

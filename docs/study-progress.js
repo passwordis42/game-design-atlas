@@ -26,6 +26,8 @@ export function lessonSteps(lesson) {
   const steps = lesson.teach.map(({ title }, index) => ({ id: `idea-${index + 1}`, title }));
   steps.push({ id: 'example', title: lesson.case.title });
   if (lesson.lab) steps.push({ id: 'lab', title: '交互实验' });
-  steps.push({ id: 'practice', title: '自己做一遍' }, { id: 'check', title: '理解检查' });
+  steps.push({ id: 'practice', title: '自己做一遍' });
+  if (lesson.checkpoint) steps.push({ id: 'project', title: '阶段项目自检' });
+  steps.push({ id: 'check', title: '理解检查' });
   return steps;
 }

@@ -38,10 +38,13 @@
 #practice-status { margin-top: 4px; }
 .practice-check { margin-top: 12px; }
 .practice-check ul { margin: 4px 0 0; padding-left: 18px; }
+.practice-check ol { margin: 8px 0 15px; padding-left: 22px; }
+.practice-check ol li + li { margin-top: 4px; }
 .sample-answer { white-space: pre-line; }
 .project-application { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 12px; }
 .project-application a { display: inline-block; margin-top: 7px; text-decoration: underline; }
 .course-quiz { margin: 0 0 19px; padding: 0; border: 0; min-width: 0; }
+.quiz-intro { margin-bottom: 12px; }
 .course-quiz legend { padding: 0 0 8px; font-size: 16px; font-weight: 760; }
 .quiz-choice { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: start; gap: 7px; padding: 8px 10px; margin: 4px 0; border: 1px solid #d1d9cf; border-radius: 6px; cursor: pointer; }
 .quiz-choice:hover, .quiz-choice:has(input:checked) { border-color: #849c75; background: #eef2df; }
@@ -51,6 +54,16 @@
 .quiz-response.correct { background: #eaf3e2; border-color: #55804d; }
 .study-finish { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 5px; }
 .lab-controls, .lab-metrics { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 11px 0; }
+.lab-check-option { align-self: center; }
+.lab-check-option input { accent-color: var(--green); }
+.log-events td:last-child { white-space: nowrap; font-size: 12px; }
+.prototype-rules, .prototype-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: 10px; margin-block: 12px; }
+.prototype-rules fieldset, .prototype-controls { min-width: 0; }
+.prototype-rules fieldset label { display: block; width: 100%; }
+.prototype-rules input[type="number"] { display: block; width: 100%; min-height: 34px; padding: 4px 8px; background: white; border: 1px solid #b7c4b6; border-radius: 6px; }
+.prototype-rules > button, .prototype-rules > p, .prototype-controls .lab-controls { grid-column: 1 / -1; }
+.prototype-rules > button { justify-self: start; }
+.prototype-log { overflow-wrap: anywhere; }
 .lab-metrics > span { padding: 4px 9px; border-radius: 5px; background: var(--panel); border: 1px solid #d1dacb; }
 .lab-metrics strong { font-variant-numeric: tabular-nums; }
 .lab-reading { border-left: 3px solid #7aa478; background: var(--panel); padding: 7px 9px; margin: 9px 0; }
@@ -85,3 +98,4 @@
   .case-grid > div { grid-template-columns: minmax(0, 1fr); gap: 1px; }
   .study-pager .outline-button, .study-pager .primary-button { font-size: 13px; padding: 5px 7px; }
 }
+.hero-resume { display: inline-block; margin-top: 10px; font-size: 14px; }

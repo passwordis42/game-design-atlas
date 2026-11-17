@@ -1,20 +1,34 @@
-import { phases, weeks, prerequisites } from './data/curriculum.js';
-import { lessons } from './data/lessons.js';
+import { phases, weeks, prerequisites } from './data/curriculum.js?v=guided-2';
+import { lessons } from './data/lessons.js?v=guided-2';
 import { buildGraph, phaseColors, weekLabel } from './graph.js';
-import { cleanRecords, downloadFile, emptyRecord, mergeWeek, readRecords, verificationReady, writeRecords } from './records.js?v=guided-1';
-import { mountCoach } from './coach.js?v=guided-1';
-import { mountStudy } from './study.js';
-import { canFinish } from './study-progress.js';
+import { applyChanges, cleanRecords, combineChanges, downloadFile, emptyRecord, mergeWeek, readRecords, readResumeWeek, recordsKey, resumeKey, validResumeWeek, verificationReady, weekChanges, writeRecords, writeResumeWeek } from './records.js?v=guided-2';
+import { mountCoach } from './coach.js?v=guided-2';
+import { mountStudy } from './study.js?v=guided-2';
+import { canFinish } from './study-progress.js?v=guided-2';
 
 const el = (id) => document.getElementById(id);
 const esc = (value) => String(value).replace(/[&<>"']/gu, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 let records = readRecords();
+const pendingChanges = new Map();
+let resumeWeek = readResumeWeek();
 let selected = 1;
 let activeView = '';
 let lastStudyWeek;
 let lastStudyStep;
 let zoom = 100;
 let announcementTimer;
+
+const resumeLink = document.createElement('a');
+resumeLink.className = 'hero-resume text-link';
+el('graph-view').querySelector('.hero > div').append(resumeLink);
+
+function renderResume() {
+  const week = validResumeWeek(resumeWeek) ? weeks[resumeWeek - 1] : undefined;
+  resumeLink.hidden = !week;
+  if (!week) return;
+  resumeLink.href = `#plan/${weekLabel(week.id)}`;
+  resumeLink.textContent = `继续上次学习 · 第 ${week.id} 周 ${week.title}`;
+}
 
 function showNotice(message) {
   clearTimeout(announcementTimer);
@@ -36,9 +50,26 @@ function syncProgress() {
   updateGraph(selected, completed);
 }
 
-function saveWeek(id, record) {
-  records[id] = record;
-  if (!writeRecords(records)) showNotice('浏览器无法保存。可在页脚导出本次记录。');
+function currentRecords() {
+  return applyChanges(readRecords(records), pendingChanges);
+}
+
+function queueChanges(id, before, after) {
+  const changed = weekChanges(before, after);
+  pendingChanges.set(id, combineChanges(pendingChanges.get(id), changed));
+}
+
+function flushPendingChanges() {
+  records = currentRecords();
+  if (!pendingChanges.size) return true;
+  const saved = writeRecords(records);
+  if (saved) pendingChanges.clear();
+  return saved;
+}
+
+function saveWeek(id, before, after) {
+  queueChanges(id, before, after);
+  if (!flushPendingChanges()) showNotice('浏览器无法保存。可在页脚导出本次记录。');
   syncProgress();
 }
 
@@ -90,22 +121,24 @@ function renderIndex() {
 
 function renderLesson(week, params) {
   const progress = records[week.id] ?? emptyRecord();
+  let editorStudy = progress.study;
   return mountStudy(el('lesson'), week, lessons[week.id], progress, params, {
     saveStudy: (study) => {
-      const latest = records[week.id] ?? emptyRecord();
-      if (JSON.stringify(latest.study) === JSON.stringify(study)) return;
+      if (JSON.stringify(editorStudy) === JSON.stringify(study)) return;
+      const base = { ...(records[week.id] ?? emptyRecord()), study: editorStudy };
       const wasFinished = courseFinished(week.id);
-      saveWeek(week.id, { ...latest, study });
+      saveWeek(week.id, base, { ...base, study });
+      editorStudy = study;
       if (wasFinished !== courseFinished(week.id)) renderIndex();
     },
     finishProject: () => {
-      const latest = records[week.id] ?? emptyRecord();
+      const latest = currentRecords()[week.id] ?? emptyRecord();
       if (!latest.locked || !verificationReady(latest)) {
         select('coach', week.id);
         showNotice('先保存设计检查点，再记录你亲自完成的项目验收。');
         return;
       }
-      saveWeek(week.id, { ...latest, complete: !latest.complete });
+      saveWeek(week.id, latest, { ...latest, complete: !latest.complete });
       renderLesson(week, params);
       const button = el('finish-week');
       button.closest('details').open = true;
@@ -152,6 +185,11 @@ function navigate() {
     renderIndex();
     lastStudyWeek = week.id;
     lastStudyStep = renderLesson(week, params);
+    if (resumeWeek !== week.id) {
+      resumeWeek = week.id;
+      writeResumeWeek(week.id);
+      renderResume();
+    }
     if (changedView || previousWeek !== week.id) {
       el('lesson').querySelector('h2').focus({ preventScroll: true });
       if (!changedView) el('lesson').scrollIntoView({ block: 'start' });
@@ -160,8 +198,12 @@ function navigate() {
     }
   }
   if (view === 'coach') {
-    mountCoach(el('coach-content'), week, records[week.id] ?? emptyRecord(), {
-      save: (record) => saveWeek(week.id, record),
+    let editorRecord = records[week.id] ?? emptyRecord();
+    mountCoach(el('coach-content'), week, editorRecord, {
+      save: (record) => {
+        saveWeek(week.id, editorRecord, record);
+        editorRecord = record;
+      },
       notice: showNotice,
       selectWeek: (newWeek) => select('coach', newWeek),
       esc
@@ -181,32 +223,52 @@ function setZoom(value) {
 }
 
 renderRoute();
+renderResume();
 el('zoom-in').addEventListener('click', () => setZoom(zoom + 25));
 el('zoom-out').addEventListener('click', () => setZoom(zoom - 25));
 el('zoom-reset').addEventListener('click', () => { setZoom(100); el('graph-scroll').scrollTo(0, 0); });
 el('search-weeks').addEventListener('input', renderIndex);
-el('export-progress').addEventListener('click', () => downloadFile(JSON.stringify({ version: 1, records }, null, 2), 'game-design-progress.json', 'application/json'));
+el('export-progress').addEventListener('click', () => downloadFile(JSON.stringify({ version: 1, records: currentRecords(), resumeWeek }, null, 2), 'game-design-progress.json', 'application/json'));
 el('import-progress').addEventListener('click', () => el('progress-file').click());
 el('progress-file').addEventListener('change', async (event) => {
   const file = event.target.files[0];
   event.target.value = '';
   if (!file) return;
   try {
-    if (file.size > 4000000) throw new Error();
+    if (file.size > 4200000) throw new Error();
     const parsed = JSON.parse(await file.text());
     if (parsed?.version !== 1 || !parsed.records || typeof parsed.records !== 'object' || Array.isArray(parsed.records)) throw new Error();
     const incoming = cleanRecords(parsed.records);
+    records = currentRecords();
     let added = 0;
     for (const [id, record] of Object.entries(incoming)) {
-      const merged = mergeWeek(records[id], record);
-      if (merged === records[id]) continue;
-      records[id] = merged;
+      const existing = records[id];
+      const merged = mergeWeek(existing, record);
+      if (merged === existing) continue;
+      queueChanges(id, existing ?? emptyRecord(), merged);
       added++;
     }
-    const saved = writeRecords(records);
+    if (!resumeWeek && validResumeWeek(parsed.resumeWeek)) {
+      resumeWeek = parsed.resumeWeek;
+      writeResumeWeek(resumeWeek);
+      renderResume();
+    }
+    const saved = flushPendingChanges();
     navigate();
     showNotice(saved ? `导入 ${added} 周记录。已有记录已保留。` : '已读入本次会话。浏览器无法保存，请导出备份。');
   } catch { showNotice('无法读取此文件。请使用本网站导出的进度文件。'); }
+});
+window.addEventListener('storage', (event) => {
+  if (event.key === recordsKey || event.key === null) {
+    records = currentRecords();
+    syncProgress();
+    if (activeView === 'plan' && !el('week-list').contains(document.activeElement)) renderIndex();
+    if (activeView === 'graph' && !el('preview').contains(document.activeElement)) renderPreview(weeks[selected - 1]);
+  }
+  if (event.key === resumeKey || event.key === null) {
+    resumeWeek = readResumeWeek();
+    renderResume();
+  }
 });
 window.addEventListener('hashchange', navigate);
 navigate();

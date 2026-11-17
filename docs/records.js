@@ -1,7 +1,10 @@
-import { cleanStudy, hasStudy } from './study-progress.js';
+import { cleanStudy, hasStudy } from './study-progress.js?v=guided-2';
 
-const storageKey = 'game-design-atlas:learning:v1';
+export const recordsKey = 'game-design-atlas:learning:v1';
+export const resumeKey = 'game-design-atlas:resume:v1';
 const fields = ['draft', 'rationale', 'evidence'];
+const projectFields = [...fields, 'locked', 'verification', 'previousVerification', 'complete'];
+const studyFields = ['position', 'full', 'practice', 'finished'];
 const slotPattern = /^触发\s*[:：]\s*(.+?)\s*[;；]\s*条件\s*[:：]\s*(.+?)\s*[;；]\s*结果\s*[:：]\s*(.+?)\s*[;；]\s*例外\s*[:：]\s*(.+)$/u;
 const unanswered = /(?:待定|未定|未填写|不知道|随便|AI\s*(?:决定|补齐|自行|补全)|尚未确认|TBD|TODO|\[空\]|[?？_]{2,}|…{2,})/iu;
 
@@ -14,6 +17,9 @@ export function cleanRecords(source) {
     const record = Object.fromEntries(fields.map((field) => [field, typeof original[field] === 'string' ? original[field].slice(0, 4000) : '']));
     record.locked = original.locked === true && checkpointReady(record);
     record.verification = typeof original.verification === 'string' ? original.verification.slice(0, 4000) : '';
+    if (typeof original.previousVerification === 'string' && original.previousVerification) {
+      record.previousVerification = original.previousVerification.slice(0, 4000);
+    }
     record.complete = original.complete === true && record.locked && verificationReady(record);
     record.study = cleanStudy(original.study);
     result[i] = record;
@@ -21,13 +27,13 @@ export function cleanRecords(source) {
   return result;
 }
 
-export function readRecords() {
-  try { return cleanRecords(JSON.parse(localStorage.getItem(storageKey))); }
-  catch { return {}; }
+export function readRecords(fallback = {}) {
+  try { return cleanRecords(JSON.parse(localStorage.getItem(recordsKey))); }
+  catch { return fallback; }
 }
 
 export function writeRecords(records) {
-  try { localStorage.setItem(storageKey, JSON.stringify(records)); return true; }
+  try { localStorage.setItem(recordsKey, JSON.stringify(records)); return true; }
   catch { return false; }
 }
 
@@ -37,13 +43,70 @@ export function emptyRecord() {
 
 export function mergeWeek(existing, incoming) {
   if (!existing) return incoming;
-  const existingProject = existing.draft || existing.rationale || existing.evidence || existing.verification || existing.complete;
-  const incomingProject = incoming.draft || incoming.rationale || incoming.evidence || incoming.verification || incoming.complete;
+  const existingProject = projectFields.some((key) => Boolean(existing[key]));
+  const incomingProject = projectFields.some((key) => Boolean(incoming[key]));
   const existingStudy = hasStudy(existing.study);
   const incomingStudy = hasStudy(incoming.study);
   if ((!incomingProject || existingProject) && (!incomingStudy || existingStudy)) return existing;
   const study = incomingStudy && !existingStudy ? incoming.study : existing.study;
   return { ...(existingProject ? existing : incoming), study };
+}
+
+function changedFields(before, after, keys) {
+  return Object.fromEntries(keys.filter((key) => before[key] !== after[key]).map((key) => [key, after[key]]));
+}
+
+export function weekChanges(before, after) {
+  const previousStudy = cleanStudy(before.study);
+  const nextStudy = cleanStudy(after.study);
+  const questionIndices = Array.from({ length: Math.max(previousStudy.answers.length, nextStudy.answers.length) }, (_, index) => index);
+  const answers = Object.fromEntries(questionIndices
+    .filter((index) => (previousStudy.answers[index] ?? null) !== (nextStudy.answers[index] ?? null))
+    .map((index) => [index, nextStudy.answers[index] ?? null]));
+  const study = changedFields(previousStudy, nextStudy, studyFields);
+  if (!nextStudy.finished && (Object.hasOwn(study, 'practice') || Object.keys(answers).length)) study.finished = false;
+  return {
+    ...changedFields(before, after, projectFields),
+    study: { ...study, answers }
+  };
+}
+
+export function combineChanges(first, last) {
+  return { ...first, ...last, study: {
+    ...first?.study, ...last.study,
+    answers: { ...first?.study?.answers, ...last.study.answers }
+  } };
+}
+
+export function applyChanges(records, pending) {
+  if (!pending.size) return records;
+  const next = { ...records };
+  for (const [week, patch] of pending) {
+    const latest = next[week] ?? emptyRecord();
+    const answers = [...latest.study.answers];
+    Object.assign(answers, patch.study.answers);
+    next[week] = cleanRecords({
+      [week]: { ...latest, ...patch, study: { ...latest.study, ...patch.study, answers } }
+    })[week];
+  }
+  return next;
+}
+
+export function validResumeWeek(value) {
+  return Number.isInteger(value) && value >= 1 && value <= 28;
+}
+
+export function readResumeWeek() {
+  try {
+    const week = JSON.parse(localStorage.getItem(resumeKey));
+    return validResumeWeek(week) ? week : null;
+  } catch { return null; }
+}
+
+export function writeResumeWeek(week) {
+  if (!validResumeWeek(week)) return;
+  try { localStorage.setItem(resumeKey, String(week)); }
+  catch { /* The current session can still resume. */ }
 }
 
 export function checkpointReady(record) {

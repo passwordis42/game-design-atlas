@@ -1,3 +1,6 @@
+import { prototypeLab } from './prototype-lab.js';
+import { researchLab } from './research-lab.js';
+
 export function calculateBudget({ opening, supply, demand, turns }) {
   let stock = opening;
   return Array.from({ length: turns }, (_, index) => {
@@ -25,10 +28,12 @@ export function funnelNumbers(version, cohort) {
 
 export const labLabels = {
   loop: '给两条路线跑一遍规则',
+  prototype: '在最小原型里验证触发与重开',
   economy: '六回合供电台',
   route: '比较原版路口和地标版',
   timing: '跳跃容错试验台',
-  funnel: '用漏斗定位上手障碍'
+  funnel: '用漏斗定位上手障碍',
+  'research-log': '从原始日志算出独立完成率'
 };
 
 function loopLab(root) {
@@ -180,14 +185,16 @@ function funnelLab(root) {
     <p class="lab-reading" aria-live="polite"></p><p class="lab-question">选一个最值得回看录像或追问玩家的环节。人数告诉你在哪里看，现场行为和玩家原话帮你分析为什么。</p>`;
   const version = root.querySelector('[data-filter="version"]');
   const cohort = root.querySelector('[data-filter="cohort"]');
-  const titles = ['进入关卡', '发现线索', '用出机制', '完成关卡'];
+  const titles = ['进入关卡', '独立识别线索', '独立用出机制', '独立完成关卡'];
   function display() {
     const counts = funnelNumbers(version.value, cohort.value);
     root.querySelector('tbody').innerHTML = counts.map((count, index) => `<tr><th scope="row">${titles[index]}</th><td><div class="stock-meter"><span style="--stock:${count / counts[0] * 100}%"></span><span>${count}</span></div></td><td>${index ? `${count} / ${counts[index - 1]}` : '起始人数'}</td></tr>`).join('');
     const drops = counts.slice(1).map((count, index) => counts[index] - count);
     const largest = Math.max(...drops);
-    const transitions = drops.flatMap((count, index) => count === largest ? [`${titles[index]} → ${titles[index + 1]}`] : []);
-    root.querySelector('.lab-reading').textContent = largest ? `${transitions.join('、')} 各少了 ${largest} 人。当前组独立完成数为 ${counts.at(-1)} / ${counts[0]}。` : '当前组示例中，每个环节都走到了下一步。';
+    const transitions = drops.map((count, index) => ({ count, from: counts[index], label: `${titles[index]} → ${titles[index + 1]}` }));
+    const byPeople = transitions.filter(({ count }) => count === largest).map(({ label }) => label);
+    const byRate = transitions.reduce((best, item) => item.count / item.from > best.count / best.from ? item : best);
+    root.querySelector('.lab-reading').textContent = largest ? `按人数看，${byPeople.join('、')}减少最多，各少 ${largest} 人。按各步的上一步人数比较，${byRate.label}减少比例最高，少了 ${byRate.count} / ${byRate.from}。` : '当前组示例中，每个环节都走到了下一步。';
   }
   version.addEventListener('change', display);
   cohort.addEventListener('change', display);
@@ -195,6 +202,6 @@ function funnelLab(root) {
 }
 
 export function mountLab(id, root) {
-  const labs = { loop: loopLab, economy: economyLab, route: routeLab, timing: timingLab, funnel: funnelLab };
+  const labs = { loop: loopLab, prototype: prototypeLab, economy: economyLab, route: routeLab, timing: timingLab, funnel: funnelLab, 'research-log': researchLab };
   labs[id]?.(root);
 }

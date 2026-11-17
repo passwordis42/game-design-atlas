@@ -1,7 +1,7 @@
 import { weeks } from './data/curriculum.js';
 import { weekLabel } from './graph.js';
-import { labLabels, mountLab } from './labs.js';
-import { canFinish, cleanStudy, hasPractice, lessonSteps } from './study-progress.js';
+import { labLabels, mountLab } from './labs.js?v=guided-2';
+import { canFinish, cleanStudy, hasPractice, lessonSteps } from './study-progress.js?v=guided-2';
 
 export function studyLink(week, id, full = false) {
   const params = new URLSearchParams();
@@ -36,6 +36,13 @@ function renderQuiz(questions, escape) {
     <p class="quiz-response" id="quiz-response-${i}" role="status" hidden></p></fieldset>`).join('');
 }
 
+function renderCheckpoint(week, checkpoint, escape) {
+  return `<div class="practice-check"><h4>${escape(checkpoint.title)}</h4>
+    <p>${escape(checkpoint.artifact)}</p><ol>${checkpoint.checks.map((check) => `<li>${escape(check)}</li>`).join('')}</ol>
+    <h4>换一个情境再做</h4><p>${escape(checkpoint.transfer)}</p></div>
+    <div class="lesson-actions"><a class="outline-button" href="#coach/${weekLabel(week.id)}">记录项目证据与复测结果</a></div>`;
+}
+
 export function mountStudy(container, week, lesson, record, params, { saveStudy, finishProject, relations, escape }) {
   const steps = lessonSteps(lesson);
   let progress = cleanStudy(record.study);
@@ -53,7 +60,8 @@ export function mountStudy(container, week, lesson, record, params, { saveStudy,
     example: renderExample(lesson, escape),
     lab: lesson.lab ? `<div class="study-lab" data-lab="${escape(lesson.lab)}"><h4>${escape(labLabels[lesson.lab])}</h4><div class="lab-body"></div></div>` : '',
     practice: renderPractice(week, lesson.activity, progress, escape),
-    check: `${renderQuiz(lesson.quiz, escape)}<div class="study-finish"><p id="study-finish-status" class="quiet"></p><button id="study-finish" class="primary-button" type="button">完成本课</button></div>`
+    project: lesson.checkpoint ? renderCheckpoint(week, lesson.checkpoint, escape) : '',
+    check: `<p class="quiet quiz-intro">用小测检查本课概念。真实项目的设计、试玩和复测证据在项目自检里单独记录。</p>${renderQuiz(lesson.quiz, escape)}<div class="study-finish"><p id="study-finish-status" class="quiet"></p><button id="study-finish" class="primary-button" type="button">完成本课</button></div>`
   };
 
   container.innerHTML = `
