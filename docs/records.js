@@ -1,3 +1,5 @@
+import { cleanStudy, hasStudy } from './study-progress.js';
+
 const storageKey = 'game-design-atlas:learning:v1';
 const fields = ['draft', 'rationale', 'evidence'];
 const slotPattern = /^触发\s*[:：]\s*(.+?)\s*[;；]\s*条件\s*[:：]\s*(.+?)\s*[;；]\s*结果\s*[:：]\s*(.+?)\s*[;；]\s*例外\s*[:：]\s*(.+)$/u;
@@ -13,6 +15,7 @@ export function cleanRecords(source) {
     record.locked = original.locked === true && checkpointReady(record);
     record.verification = typeof original.verification === 'string' ? original.verification.slice(0, 4000) : '';
     record.complete = original.complete === true && record.locked && verificationReady(record);
+    record.study = cleanStudy(original.study);
     result[i] = record;
   }
   return result;
@@ -29,7 +32,18 @@ export function writeRecords(records) {
 }
 
 export function emptyRecord() {
-  return { draft: '', rationale: '', evidence: '', locked: false, verification: '', complete: false };
+  return { draft: '', rationale: '', evidence: '', locked: false, verification: '', complete: false, study: cleanStudy() };
+}
+
+export function mergeWeek(existing, incoming) {
+  if (!existing) return incoming;
+  const existingProject = existing.draft || existing.rationale || existing.evidence || existing.verification || existing.complete;
+  const incomingProject = incoming.draft || incoming.rationale || incoming.evidence || incoming.verification || incoming.complete;
+  const existingStudy = hasStudy(existing.study);
+  const incomingStudy = hasStudy(incoming.study);
+  if ((!incomingProject || existingProject) && (!incomingStudy || existingStudy)) return existing;
+  const study = incomingStudy && !existingStudy ? incoming.study : existing.study;
+  return { ...(existingProject ? existing : incoming), study };
 }
 
 export function checkpointReady(record) {

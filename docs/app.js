@@ -1,13 +1,18 @@
 import { phases, weeks, prerequisites } from './data/curriculum.js';
+import { lessons } from './data/lessons.js';
 import { buildGraph, phaseColors, weekLabel } from './graph.js';
-import { cleanRecords, downloadFile, emptyRecord, readRecords, verificationReady, writeRecords } from './records.js';
+import { cleanRecords, downloadFile, emptyRecord, mergeWeek, readRecords, verificationReady, writeRecords } from './records.js';
 import { mountCoach } from './coach.js';
+import { mountStudy } from './study.js';
+import { canFinish } from './study-progress.js';
 
 const el = (id) => document.getElementById(id);
 const esc = (value) => String(value).replace(/[&<>"']/gu, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 let records = readRecords();
 let selected = 1;
 let activeView = '';
+let lastStudyWeek;
+let lastStudyStep;
 let zoom = 100;
 let announcementTimer;
 
@@ -19,8 +24,13 @@ function showNotice(message) {
   announcementTimer = setTimeout(() => { announcement.hidden = true; }, 4500);
 }
 
+function courseFinished(id) {
+  const study = records[id]?.study;
+  return Boolean(study?.finished && canFinish(study, lessons[id].quiz));
+}
+
 function syncProgress() {
-  const completed = new Set(weeks.filter(({ id }) => records[id]?.complete).map(({ id }) => id));
+  const completed = new Set(weeks.filter(({ id }) => courseFinished(id)).map(({ id }) => id));
   el('progress-count').textContent = `${completed.size} / ${weeks.length}`;
   el('progress-fill').style.width = `${completed.size / weeks.length * 100}%`;
   updateGraph(selected, completed);
@@ -65,7 +75,7 @@ function renderPreview(week) {
     ${section('验收标准', week.acceptance, 'preview-block')}
     ${relationsFor(week, 'graph')}
     <div class="preview-bottom"></div>
-    <a class="primary-button" href="#plan/${weekLabel(week.id)}">${records[week.id]?.complete ? '回看课程' : '开始学习'} <span aria-hidden="true">↗</span></a>`;
+    <a class="primary-button" href="#plan/${weekLabel(week.id)}">${courseFinished(week.id) ? '回看课程' : records[week.id]?.study?.position ? '继续学习' : '开始学习'} <span aria-hidden="true">↗</span></a>`;
 }
 
 function renderIndex() {
@@ -74,36 +84,36 @@ function renderIndex() {
   el('week-list').innerHTML = phases.map((phase) => {
     const group = matches.filter((week) => week.phase === phase.id);
     if (!group.length) return '';
-    return `<div class="index-phase"><h3>${esc(phase.title)}</h3>${group.map((week) => `<a class="index-week" ${week.id === selected ? 'aria-current="page"' : ''} href="#plan/${weekLabel(week.id)}"><small>${weekLabel(week.id)}</small>${esc(week.title)}${records[week.id]?.complete ? '<span class="completed-mark" aria-label="已完成">✓</span>' : ''}</a>`).join('')}</div>`;
+    return `<div class="index-phase"><h3>${esc(phase.title)}</h3>${group.map((week) => `<a class="index-week" ${week.id === selected ? 'aria-current="page"' : ''} href="#plan/${weekLabel(week.id)}"><small>${weekLabel(week.id)}</small>${esc(week.title)}${courseFinished(week.id) ? '<span class="completed-mark" aria-label="课内已完成">✓</span>' : ''}</a>`).join('')}</div>`;
   }).join('') || '<p class="quiet index-phase">找不到匹配的课程。</p>';
 }
 
-function renderLesson(week) {
+function renderLesson(week, params) {
   const progress = records[week.id] ?? emptyRecord();
-  const previous = weeks[week.id - 2];
-  const next = weeks[week.id];
-  el('lesson').innerHTML = `
-    <span class="week-stamp">周 ${weekLabel(week.id)}</span>
-    <h2 tabindex="-1">${esc(week.title)}</h2>
-    ${section('学习要点', week.concept, 'lesson-block')}
-    ${section('动手练习', week.exercise, 'lesson-block')}
-    ${section('验收标准', week.acceptance, 'lesson-block')}
-    ${section('本周证据', week.evidence, 'lesson-block')}
-    <div class="lesson-block"><h3>学习资料</h3><ul class="resource-list">${week.resources.map(({ title, url }) => `<li><a href="${esc(url)}" rel="noopener noreferrer" target="_blank">${esc(title)} ↗</a></li>`).join('')}</ul></div>
-    <div class="lesson-block"><h3>图谱关系</h3>${relationsFor(week, 'plan')}</div>
-    <div class="lesson-actions"><a class="primary-button" href="#coach/${weekLabel(week.id)}">${progress.locked ? '查看设计检查点' : '记录自己的设计与证据'}</a><button type="button" class="outline-button" id="finish-week">${progress.complete ? '✓ 已完成 · 取消' : '标记本周完成'}</button></div>
-    <div class="prev-next">${previous ? `<a href="#plan/${weekLabel(previous.id)}">← ${esc(previous.title)}</a>` : '<span></span>'}${next ? `<a href="#plan/${weekLabel(next.id)}">${esc(next.title)} →</a>` : '<a href="#graph">返回图谱 ↗</a>'}</div>`;
-  el('finish-week').addEventListener('click', () => {
-    if (!progress.locked || !verificationReady(progress)) {
-      select('coach', week.id);
-      showNotice('先保存设计检查点，再记录你亲自完成的验收。');
-      return;
-    }
-    saveWeek(week.id, { ...progress, complete: !progress.complete });
-    renderIndex();
-    renderLesson(week);
-    el('finish-week').focus();
-    showNotice(!progress.complete ? '本周已标记完成。' : '本周已改为进行中。');
+  return mountStudy(el('lesson'), week, lessons[week.id], progress, params, {
+    saveStudy: (study) => {
+      const latest = records[week.id] ?? emptyRecord();
+      if (JSON.stringify(latest.study) === JSON.stringify(study)) return;
+      const wasFinished = courseFinished(week.id);
+      saveWeek(week.id, { ...latest, study });
+      if (wasFinished !== courseFinished(week.id)) renderIndex();
+    },
+    finishProject: () => {
+      const latest = records[week.id] ?? emptyRecord();
+      if (!latest.locked || !verificationReady(latest)) {
+        select('coach', week.id);
+        showNotice('先保存设计检查点，再记录你亲自完成的项目验收。');
+        return;
+      }
+      saveWeek(week.id, { ...latest, complete: !latest.complete });
+      renderLesson(week, params);
+      const button = el('finish-week');
+      button.closest('details').open = true;
+      button.focus();
+      showNotice(!latest.complete ? '已记录本周项目验收。' : '已撤销本周项目验收。');
+    },
+    relations: relationsFor(week, 'plan'),
+    escape: esc
   });
 }
 
@@ -118,12 +128,13 @@ function renderRoute() {
 }
 
 function navigate() {
-  const [path, id] = location.hash.slice(1).split('/');
+  const [route, query] = location.hash.slice(1).split('?');
+  const [path, id] = route.split('/');
+  const params = new URLSearchParams(query);
   if (path === 'main' && activeView) return;
   const view = ['graph', 'plan', 'coach'].includes(path) ? path : 'graph';
   const week = weeks.find((item) => item.id === Number(id)) ?? weeks[selected - 1];
   const changedView = view !== activeView;
-  const moveLessonFocus = document.activeElement?.closest('#week-list, .prev-next');
   activeView = view;
   selected = week.id;
 
@@ -135,7 +146,19 @@ function navigate() {
   }
   syncProgress();
   if (view === 'graph') renderPreview(week);
-  if (view === 'plan') { renderIndex(); renderLesson(week); }
+  if (view === 'plan') {
+    const previousWeek = lastStudyWeek;
+    const previousStep = lastStudyStep;
+    renderIndex();
+    lastStudyWeek = week.id;
+    lastStudyStep = renderLesson(week, params);
+    if (changedView || previousWeek !== week.id) {
+      el('lesson').querySelector('h2').focus({ preventScroll: true });
+      if (!changedView) el('lesson').scrollIntoView({ block: 'start' });
+    } else if (previousStep !== lastStudyStep || params.has('view')) {
+      el(`course-${lastStudyStep}`).querySelector('h3').focus();
+    }
+  }
   if (view === 'coach') {
     mountCoach(el('coach-content'), week, records[week.id] ?? emptyRecord(), {
       save: (record) => saveWeek(week.id, record),
@@ -145,9 +168,6 @@ function navigate() {
     });
   }
   if (changedView) window.scrollTo(0, 0);
-  if (!changedView && view === 'plan' && moveLessonFocus) {
-    el('lesson').querySelector('h2').focus();
-  }
 }
 
 function setZoom(value) {
@@ -172,15 +192,15 @@ el('progress-file').addEventListener('change', async (event) => {
   event.target.value = '';
   if (!file) return;
   try {
-    if (file.size > 3000000) throw new Error();
+    if (file.size > 4000000) throw new Error();
     const parsed = JSON.parse(await file.text());
     if (parsed?.version !== 1 || !parsed.records || typeof parsed.records !== 'object' || Array.isArray(parsed.records)) throw new Error();
     const incoming = cleanRecords(parsed.records);
     let added = 0;
     for (const [id, record] of Object.entries(incoming)) {
-      const existing = records[id];
-      if (existing && (existing.draft || existing.rationale || existing.evidence || existing.verification || existing.complete)) continue;
-      records[id] = record;
+      const merged = mergeWeek(records[id], record);
+      if (merged === records[id]) continue;
+      records[id] = merged;
       added++;
     }
     const saved = writeRecords(records);

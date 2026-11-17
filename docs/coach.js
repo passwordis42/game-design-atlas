@@ -78,7 +78,7 @@ export function mountCoach(container, week, initial, { save, notice, selectWeek,
         </section>
         <section class="panel coach-card">
           <h2>我的验收与复盘</h2>
-          <p class="quiet">按本周验收标准亲自完成练习，记下你执行了什么、实际观察到什么，以及你的判断。保存检查点和复盘后，可在周计划标记完成。</p>
+          <p class="quiet">按本周项目标准亲自完成练习，记下你执行了什么、实际观察到什么，以及你的判断。保存检查点和复盘后，可在课末「本周项目与验收」里标记项目已验收。</p>
           <div class="field"><label for="verification">亲自验证的结果</label><textarea id="verification" maxlength="4000" placeholder="第几版、怎么试、观察到什么、下一步怎么判断">${esc(record.verification)}</textarea></div>
           <div class="form-actions"><a class="outline-button" href="#plan/${weekLabel(week.id)}">返回本周课程</a></div>
         </section>
