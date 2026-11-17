@@ -88,7 +88,7 @@ export function mountCoach(container, week, initial, { save, notice, selectWeek,
           <h2>选择 AI 如何协助</h2>
           <p class="quiet">${esc(connection)}</p>
           <div class="form-actions"><button class="outline-button" type="button" id="connect-ai" ${busy ? 'disabled' : ''}>${apiProviders ? '检查连接' : '连接本地助手'}</button><a class="text-link" href="${repository}#本地启动与-ai-服务" target="_blank" rel="noopener noreferrer">设置说明 ↗</a></div>
-          <p class="quiet" role="status">${esc(connectionMessage)}</p>
+          <p class="quiet" role="status">${esc(connectionMessage)} ${connectionMessage && !localHost ? `<a class="text-link" href="${localUrl}/#coach/${weekLabel(week.id)}" target="_blank" rel="noopener noreferrer">打开本地课程 ↗</a>` : ''}</p>
           <div class="field"><label for="coach-mode">协助方式</label><select ${record.locked && !busy ? '' : 'disabled'} id="coach-mode"><option value="coach" ${mode === 'coach' ? 'selected' : ''}>提问 · 澄清我的想法</option><option value="review" ${mode === 'review' ? 'selected' : ''}>评审 · 检查证据与规格</option><option value="implementation" ${mode === 'implementation' ? 'selected' : ''}>委托实现 · 确认规则范围</option></select></div>
           <div class="field"><label for="coach-provider">模型服务</label><select ${record.locked && !busy ? '' : 'disabled'} id="coach-provider">${providerOptions()}</select></div>
           ${mode === 'implementation' ? `<fieldset class="field-group" ${busy ? 'disabled' : ''}><legend>本次允许实现的规则</legend>${formatted.length ? formatted.map((rule, index) => `<label><input type="checkbox" value="${index}" ${approvalSet.has(rule) ? 'checked' : ''}><span>${esc(rule)}</span></label>`).join('') : '<p class="quiet">先修改检查点，按四个字段写出规则，再回来逐条确认。</p>'}</fieldset>` : ''}

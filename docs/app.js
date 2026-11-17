@@ -119,10 +119,11 @@ function renderRoute() {
 
 function navigate() {
   const [path, id] = location.hash.slice(1).split('/');
-  if (path === 'main') return;
+  if (path === 'main' && activeView) return;
   const view = ['graph', 'plan', 'coach'].includes(path) ? path : 'graph';
   const week = weeks.find((item) => item.id === Number(id)) ?? weeks[selected - 1];
   const changedView = view !== activeView;
+  const moveLessonFocus = document.activeElement?.closest('#week-list, .prev-next');
   activeView = view;
   selected = week.id;
 
@@ -144,7 +145,7 @@ function navigate() {
     });
   }
   if (changedView) window.scrollTo(0, 0);
-  if (!changedView && view === 'plan' && document.activeElement?.closest('#week-list, .prev-next')) {
+  if (!changedView && view === 'plan' && moveLessonFocus) {
     el('lesson').querySelector('h2').focus();
   }
 }
@@ -171,14 +172,14 @@ el('progress-file').addEventListener('change', async (event) => {
   event.target.value = '';
   if (!file) return;
   try {
-    if (file.size > 500000) throw new Error();
+    if (file.size > 3000000) throw new Error();
     const parsed = JSON.parse(await file.text());
     if (parsed?.version !== 1 || !parsed.records || typeof parsed.records !== 'object' || Array.isArray(parsed.records)) throw new Error();
     const incoming = cleanRecords(parsed.records);
     let added = 0;
     for (const [id, record] of Object.entries(incoming)) {
       const existing = records[id];
-      if (existing && (existing.draft || existing.rationale || existing.evidence || existing.complete)) continue;
+      if (existing && (existing.draft || existing.rationale || existing.evidence || existing.verification || existing.complete)) continue;
       records[id] = record;
       added++;
     }
