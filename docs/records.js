@@ -1,10 +1,10 @@
-import { cleanStudy, hasStudy } from './study-progress.js?v=guided-2';
+import { cleanStudy, hasReasoning, hasStudy } from './study-progress.js?v=guided-3';
 
 export const recordsKey = 'game-design-atlas:learning:v1';
 export const resumeKey = 'game-design-atlas:resume:v1';
 const fields = ['draft', 'rationale', 'evidence'];
 const projectFields = [...fields, 'locked', 'verification', 'previousVerification', 'complete'];
-const studyFields = ['position', 'full', 'practice', 'finished'];
+const studyFields = ['position', 'full', 'practice', 'legacyFinished', 'finished'];
 const slotPattern = /^触发\s*[:：]\s*(.+?)\s*[;；]\s*条件\s*[:：]\s*(.+?)\s*[;；]\s*结果\s*[:：]\s*(.+?)\s*[;；]\s*例外\s*[:：]\s*(.+)$/u;
 const unanswered = /(?:待定|未定|未填写|不知道|随便|AI\s*(?:决定|补齐|自行|补全)|尚未确认|TBD|TODO|\[空\]|[?？_]{2,}|…{2,})/iu;
 
@@ -47,8 +47,10 @@ export function mergeWeek(existing, incoming) {
   const incomingProject = projectFields.some((key) => Boolean(incoming[key]));
   const existingStudy = hasStudy(existing.study);
   const incomingStudy = hasStudy(incoming.study);
-  if ((!incomingProject || existingProject) && (!incomingStudy || existingStudy)) return existing;
-  const study = incomingStudy && !existingStudy ? incoming.study : existing.study;
+  const addReasoning = hasReasoning(incoming.study?.reasoning) && !hasReasoning(existing.study?.reasoning);
+  if ((!incomingProject || existingProject) && (!incomingStudy || existingStudy) && !addReasoning) return existing;
+  let study = incomingStudy && !existingStudy ? incoming.study : existing.study;
+  if (addReasoning && study === existing.study) study = { ...study, reasoning: incoming.study.reasoning, finished: incoming.study.finished };
   return { ...(existingProject ? existing : incoming), study };
 }
 
@@ -64,7 +66,8 @@ export function weekChanges(before, after) {
     .filter((index) => (previousStudy.answers[index] ?? null) !== (nextStudy.answers[index] ?? null))
     .map((index) => [index, nextStudy.answers[index] ?? null]));
   const study = changedFields(previousStudy, nextStudy, studyFields);
-  if (!nextStudy.finished && (Object.hasOwn(study, 'practice') || Object.keys(answers).length)) study.finished = false;
+  if (JSON.stringify(previousStudy.reasoning) !== JSON.stringify(nextStudy.reasoning)) study.reasoning = nextStudy.reasoning;
+  if (!nextStudy.finished && (Object.hasOwn(study, 'practice') || Object.hasOwn(study, 'reasoning'))) study.finished = false;
   return {
     ...changedFields(before, after, projectFields),
     study: { ...study, answers }
@@ -85,8 +88,14 @@ export function applyChanges(records, pending) {
     const latest = next[week] ?? emptyRecord();
     const answers = [...latest.study.answers];
     Object.assign(answers, patch.study.answers);
+    const studyPatch = { ...patch.study };
+    const currentCase = latest.study.reasoning;
+    if (currentCase.submitted && studyPatch.reasoning && (!studyPatch.reasoning.submitted || ['judgment', 'evidence', 'verification'].some((key) => studyPatch.reasoning[key] !== currentCase[key]))) {
+      delete studyPatch.reasoning;
+      delete studyPatch.finished;
+    }
     next[week] = cleanRecords({
-      [week]: { ...latest, ...patch, study: { ...latest.study, ...patch.study, answers } }
+      [week]: { ...latest, ...patch, study: { ...latest.study, ...studyPatch, answers } }
     })[week];
   }
   return next;

@@ -44,6 +44,24 @@ test('the checkpoint requires a learner draft, reasoning and evidence in all mod
   }
 });
 
+test('case context stays separate from learner evidence and cannot become an answer', async () => {
+  const context = '花铺在两个不同的时间段招募首次玩家。';
+  const result = await assist({ ...base, context }, {
+    env: keys,
+    fetcher: async (_url, init) => {
+      const request = JSON.parse(init.body);
+      const submitted = JSON.parse(request.messages.at(-1).content);
+      assert.equal(submitted.context, context);
+      assert.equal(submitted.draft, base.draft);
+      assert.equal(submitted.evidence, base.evidence);
+      return providerResponse([{ focus: 'evidence', anchor: context }], false, { answer: '直接采用新版。' });
+    },
+  });
+  assert.deepEqual(result.questions, ['哪一段观察支持你的判断？你还有什么其他解释？']);
+  assert.deepEqual(result.specification, []);
+  assert.equal(JSON.stringify(result).includes(context), false);
+});
+
 test('implementation blocks empty, incomplete and unapproved rules before provider access', async () => {
   const mode = 'implementation';
   const blocked = await assist({ ...base, mode, approvedRules: [] }, { env: keys, fetcher: noProviderCall });

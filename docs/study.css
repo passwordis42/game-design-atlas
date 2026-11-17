@@ -43,16 +43,22 @@
 .sample-answer { white-space: pre-line; }
 .project-application { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 12px; }
 .project-application a { display: inline-block; margin-top: 7px; text-decoration: underline; }
-.course-quiz { margin: 0 0 19px; padding: 0; border: 0; min-width: 0; }
 .quiz-intro { margin-bottom: 12px; }
-.course-quiz legend { padding: 0 0 8px; font-size: 16px; font-weight: 760; }
-.quiz-choice { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: start; gap: 7px; padding: 8px 10px; margin: 4px 0; border: 1px solid #d1d9cf; border-radius: 6px; cursor: pointer; }
-.quiz-choice:hover, .quiz-choice:has(input:checked) { border-color: #849c75; background: #eef2df; }
-.quiz-choice input { margin: 6px 0 0; accent-color: var(--green); }
-.quiz-letter { font-weight: 780; color: var(--muted); }
-.quiz-response { background: #f6ede3; margin-top: 7px; padding: 8px 10px; border-left: 3px solid #a7703c; border-radius: 4px; }
-.quiz-response.correct { background: #eaf3e2; border-color: #55804d; }
-.study-finish { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 5px; }
+.reasoning-form { margin-top: 12px; }
+.reasoning-form > label { display: block; font-weight: 700; margin: 9px 0 4px; }
+.reasoning-form textarea { display: block; }
+.reasoning-form textarea[readonly] { background: #f7f8f2; }
+.followup-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 10px 0; }
+.followup-questions { margin-block: 8px 0; padding-left: 22px; }
+.study-finish { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 14px; }
+.experiment-brief, .experiment-prediction { padding: 9px 11px; margin-bottom: 10px; border-left: 3px solid #7aa478; background: var(--panel); }
+.experiment-prediction strong { display: block; }
+.experiment-reading { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 10px; margin-block: 8px; }
+.experiment-reading > div { border: 1px solid #d5ddcc; border-radius: 6px; padding: 8px; }
+.study-lab h5 { margin: 0 0 5px; font-size: 14px; }
+.experiment-reading dl { margin: 0; }
+.experiment-reading dl > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 7px; padding-block: 3px; border-bottom: 1px solid var(--line); }
+.experiment-reading dd { margin: 0; overflow-wrap: anywhere; }
 .lab-controls, .lab-metrics { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 11px 0; }
 .lab-check-option { align-self: center; }
 .lab-check-option input { accent-color: var(--green); }

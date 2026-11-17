@@ -8,6 +8,7 @@ const sessions = [
 ];
 
 const eventLabels = { start: '开始', pickup: '拾取', help: '求助后得到提示', complete: '完成', exit: '主动退出' };
+const metric = (label, value) => ({ label, value });
 
 function eventId(session, time, event) {
   return `${session}-${time}-${event}`;
@@ -42,11 +43,30 @@ export function researchLab(root) {
   const version = root.querySelector('[data-filter="version"]');
   const unit = root.querySelector('[data-filter="unit"]');
   const deduplicate = root.querySelector('[data-filter="deduplicate"]');
+  let last;
+  const run = document.createElement('button');
+  run.className = 'primary-button';
+  run.type = 'button';
+  run.textContent = '分析这组日志';
+  root.querySelector('.lab-controls').append(run);
 
   function display() {
     const report = analyzePracticeLog({ version: version.value.toUpperCase(), unit: unit.value, deduplicate: deduplicate.checked });
+    last = {
+      parameters: [
+        metric('版本', version.selectedOptions[0].textContent.trim()),
+        metric('计算单位', unit.selectedOptions[0].textContent.trim()),
+        metric('按事件 ID 去重', deduplicate.checked ? '是' : '否')
+      ],
+      results: [
+        metric('独立完成', report.independent + ' / ' + report.starts),
+        metric('提示后完成', report.assisted), metric('主动退出', report.exited),
+        metric('结局未知', report.unknown), metric('拾取事件', report.pickups)
+      ]
+    };
     root.querySelector('.lab-metrics').innerHTML = `<span>独立完成 <strong>${report.independent} / ${report.starts}</strong></span><span>提示后完成 <strong>${report.assisted}</strong></span><span>主动退出 <strong>${report.exited}</strong></span><span>结局未知 <strong>${report.unknown}</strong></span><span>拾取事件 <strong>${report.pickups}</strong></span>`;
   }
   for (const control of [version, unit, deduplicate]) control.addEventListener('change', display);
-  display();
+  run.addEventListener('click', display);
+  return { snapshot: () => last ?? { parameters: [], results: [] } };
 }

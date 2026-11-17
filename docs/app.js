@@ -1,10 +1,11 @@
 import { phases, weeks, prerequisites } from './data/curriculum.js?v=guided-2';
-import { lessons } from './data/lessons.js?v=guided-2';
+import { lessons } from './data/lessons.js?v=guided-3';
 import { buildGraph, phaseColors, weekLabel } from './graph.js';
-import { applyChanges, cleanRecords, combineChanges, downloadFile, emptyRecord, mergeWeek, readRecords, readResumeWeek, recordsKey, resumeKey, validResumeWeek, verificationReady, weekChanges, writeRecords, writeResumeWeek } from './records.js?v=guided-2';
-import { mountCoach } from './coach.js?v=guided-2';
-import { mountStudy } from './study.js?v=guided-2';
-import { canFinish } from './study-progress.js?v=guided-2';
+import { applyChanges, cleanRecords, combineChanges, downloadFile, emptyRecord, mergeWeek, readRecords, readResumeWeek, recordsKey, resumeKey, validResumeWeek, verificationReady, weekChanges, writeRecords, writeResumeWeek } from './records.js?v=guided-3';
+import { mountCoach } from './coach.js?v=guided-3';
+import { mountStudy } from './study.js?v=guided-3';
+import { canFinish } from './study-progress.js?v=guided-3';
+import { importExperiments, readExperiments } from './experiments.js';
 
 const el = (id) => document.getElementById(id);
 const esc = (value) => String(value).replace(/[&<>"']/gu, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -40,7 +41,7 @@ function showNotice(message) {
 
 function courseFinished(id) {
   const study = records[id]?.study;
-  return Boolean(study?.finished && canFinish(study, lessons[id].quiz));
+  return Boolean(study?.finished && canFinish(study));
 }
 
 function syncProgress() {
@@ -228,14 +229,14 @@ el('zoom-in').addEventListener('click', () => setZoom(zoom + 25));
 el('zoom-out').addEventListener('click', () => setZoom(zoom - 25));
 el('zoom-reset').addEventListener('click', () => { setZoom(100); el('graph-scroll').scrollTo(0, 0); });
 el('search-weeks').addEventListener('input', renderIndex);
-el('export-progress').addEventListener('click', () => downloadFile(JSON.stringify({ version: 1, records: currentRecords(), resumeWeek }, null, 2), 'game-design-progress.json', 'application/json'));
+el('export-progress').addEventListener('click', () => downloadFile(JSON.stringify({ version: 1, records: currentRecords(), resumeWeek, experiments: readExperiments() }, null, 2), 'game-design-progress.json', 'application/json'));
 el('import-progress').addEventListener('click', () => el('progress-file').click());
 el('progress-file').addEventListener('change', async (event) => {
   const file = event.target.files[0];
   event.target.value = '';
   if (!file) return;
   try {
-    if (file.size > 4200000) throw new Error();
+    if (file.size > 16000000) throw new Error();
     const parsed = JSON.parse(await file.text());
     if (parsed?.version !== 1 || !parsed.records || typeof parsed.records !== 'object' || Array.isArray(parsed.records)) throw new Error();
     const incoming = cleanRecords(parsed.records);
@@ -254,8 +255,9 @@ el('progress-file').addEventListener('change', async (event) => {
       renderResume();
     }
     const saved = flushPendingChanges();
+    const experiments = importExperiments(parsed.experiments);
     navigate();
-    showNotice(saved ? `导入 ${added} 周记录。已有记录已保留。` : '已读入本次会话。浏览器无法保存，请导出备份。');
+    showNotice(saved && experiments.saved ? `导入 ${added} 周课程记录、${experiments.added} 次实验。已有记录已保留。` : '已读入本次会话。浏览器无法保存，请导出备份。');
   } catch { showNotice('无法读取此文件。请使用本网站导出的进度文件。'); }
 });
 window.addEventListener('storage', (event) => {

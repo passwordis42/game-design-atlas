@@ -1,7 +1,9 @@
 import { weeks } from './data/curriculum.js';
 import { weekLabel } from './graph.js';
-import { labLabels, mountLab } from './labs.js?v=guided-2';
-import { canFinish, cleanStudy, hasPractice, lessonSteps } from './study-progress.js?v=guided-2';
+import { labLabels, mountLab } from './labs.js?v=guided-3';
+import { canFinish, cleanStudy, hasPractice, lessonSteps } from './study-progress.js?v=guided-3';
+import { mountReasoning } from './reasoning.js';
+import { mountExperiment } from './experiment-notebook.js';
 
 export function studyLink(week, id, full = false) {
   const params = new URLSearchParams();
@@ -30,12 +32,6 @@ function renderPractice(week, activity, progress, escape) {
     <aside class="project-application"><h4>用到本周项目</h4><p>${escape(week.exercise)}</p><p><strong>验收标准</strong> ${escape(week.acceptance)}</p><p><strong>要留下的证据</strong> ${escape(week.evidence)}</p><div class="lesson-actions"><button class="outline-button" id="copy-practice" type="button" ${progress.practice.trim() ? '' : 'disabled'}>复制我的练习答案</button><a class="text-link" href="#coach/${weekLabel(week.id)}">记录项目的设计与证据 ↗</a></div></aside>`;
 }
 
-function renderQuiz(questions, escape) {
-  return questions.map((question, i) => `<fieldset class="course-quiz"><legend>${i + 1}. ${escape(question.prompt)}</legend>
-    ${question.choices.map(({ text }, j) => `<label class="quiz-choice"><input type="radio" name="course-question-${i}" value="${j}" data-quiz="${i}"><span class="quiz-letter" aria-hidden="true">${String.fromCharCode(65 + j)}</span><span>${escape(text)}</span></label>`).join('')}
-    <p class="quiz-response" id="quiz-response-${i}" role="status" hidden></p></fieldset>`).join('');
-}
-
 function renderCheckpoint(week, checkpoint, escape) {
   return `<div class="practice-check"><h4>${escape(checkpoint.title)}</h4>
     <p>${escape(checkpoint.artifact)}</p><ol>${checkpoint.checks.map((check) => `<li>${escape(check)}</li>`).join('')}</ol>
@@ -61,7 +57,7 @@ export function mountStudy(container, week, lesson, record, params, { saveStudy,
     lab: lesson.lab ? `<div class="study-lab" data-lab="${escape(lesson.lab)}"><h4>${escape(labLabels[lesson.lab])}</h4><div class="lab-body"></div></div>` : '',
     practice: renderPractice(week, lesson.activity, progress, escape),
     project: lesson.checkpoint ? renderCheckpoint(week, lesson.checkpoint, escape) : '',
-    check: `<p class="quiet quiz-intro">用小测检查本课概念。真实项目的设计、试玩和复测证据在项目自检里单独记录。</p>${renderQuiz(lesson.quiz, escape)}<div class="study-finish"><p id="study-finish-status" class="quiet"></p><button id="study-finish" class="primary-button" type="button">完成本课</button></div>`
+    check: `<p class="quiet quiz-intro">先独立推理。提交后再核对依据、比较示范思路，或者请 AI 追问。</p>${progress.legacyFinished ? '<p class="quiet">旧版选择题完成记录已保留。本课可重新用开放案例练习。</p>' : ''}<div data-reasoning></div><div class="study-finish"><p id="study-finish-status" class="quiet"></p><button id="study-finish" class="primary-button" type="button">完成本课</button></div>`
   };
 
   container.innerHTML = `
@@ -74,34 +70,24 @@ export function mountStudy(container, week, lesson, record, params, { saveStudy,
     <details class="study-details"><summary>本周项目与验收${record.complete ? ' · 已验收' : ''}</summary><div><p>${escape(week.exercise)}</p><p><strong>验收标准</strong> ${escape(week.acceptance)}</p><div class="lesson-actions"><a class="outline-button" href="#coach/${weekLabel(week.id)}">打开项目记录</a><button class="outline-button" type="button" id="finish-week">${record.complete ? '✓ 项目已验收 · 取消' : '标记本周项目验收'}</button></div></div></details>
     <nav class="prev-next" aria-label="前后课程">${previous ? `<a href="${studyLink(previous.id)}">← ${escape(previous.title)}</a>` : '<span></span>'}${next ? `<a href="${studyLink(next.id)}">${escape(next.title)} →</a>` : '<a href="#graph">返回图谱 ↗</a>'}</nav>`;
 
-  function reflectQuestion(i) {
-    const box = container.querySelector(`#quiz-response-${i}`);
-    if (!box) return;
-    const selected = progress.answers[i];
-    const question = lesson.quiz[i];
-    const choice = question.choices[selected];
-    box.hidden = !choice;
-    if (!choice) return;
-    const correct = question.correct === selected;
-    box.textContent = `${correct ? '答对了。' : '再想一步。'}${choice.feedback}`;
-    box.classList.toggle('correct', correct);
-  }
-
   function reflectCompletion() {
     const status = container.querySelector('#study-finish-status');
     if (!status) return;
-    const ready = canFinish(progress, lesson.quiz);
+    const ready = canFinish(progress);
     const finished = progress.finished && ready;
     const button = container.querySelector('#study-finish');
     button.disabled = !ready;
     button.textContent = finished ? '✓ 已完成本课 · 取消' : '完成本课';
-    const correct = lesson.quiz.filter((question, i) => progress.answers[i] === question.correct).length;
-    status.textContent = finished ? '已计入课内学习进度。项目验收单独记录。' : `理解检查 ${correct} / ${lesson.quiz.length}。${hasPractice(progress.practice) ? '已有自己的练习记录。' : '请在「自己做一遍」留下你的练习记录。'}`;
+    const remaining = [];
+    if (!hasPractice(progress.practice)) remaining.push('留下你的动手练习记录');
+    if (!progress.reasoning.submitted) remaining.push('提交你的案例判断');
+    if (progress.reasoning.submitted && !hasPractice(progress.reasoning.reflection)) remaining.push('写下对照后的复盘');
+    status.textContent = finished ? '已计入课内学习进度。项目验收单独记录。' : remaining.length ? '完成本课前，请' + remaining.join('、') + '。' : '案例判断、复盘和练习已经记录。';
   }
 
   function update(nextProgress) {
     progress = { ...progress, ...nextProgress };
-    if (!canFinish(progress, lesson.quiz)) progress.finished = false;
+    if (!canFinish(progress)) progress.finished = false;
     saveStudy(progress);
     reflectCompletion();
   }
@@ -127,20 +113,11 @@ export function mountStudy(container, week, lesson, record, params, { saveStudy,
     }
   });
 
-  container.querySelectorAll('[data-quiz]').forEach((input) => {
-    const i = Number(input.dataset.quiz);
-    input.checked = Number(input.value) === progress.answers[i];
-    input.addEventListener('change', () => {
-      const answers = Array.from(progress.answers);
-      answers[i] = Number(input.value);
-      update({ answers });
-      reflectQuestion(i);
-    });
-  });
-  lesson.quiz.forEach((_, i) => reflectQuestion(i));
+  const reasoning = container.querySelector('[data-reasoning]');
+  if (reasoning) mountReasoning(reasoning, week, lesson.reasoning, progress.reasoning, (value) => update({ reasoning: value }), escape);
   reflectCompletion();
   container.querySelector('#study-finish')?.addEventListener('click', () => {
-    if (canFinish(progress, lesson.quiz)) update({ finished: !progress.finished });
+    if (canFinish(progress)) update({ finished: !progress.finished });
   });
   container.querySelector('#finish-week').addEventListener('click', finishProject);
   const stepNav = container.querySelector('.study-step-nav');
@@ -149,6 +126,6 @@ export function mountStudy(container, week, lesson, record, params, { saveStudy,
   const stepBox = selectedStep.getBoundingClientRect();
   if (stepBox.right > navBox.right) stepNav.scrollLeft += stepBox.right - navBox.right + 4;
   const lab = container.querySelector('[data-lab]');
-  if (lab) mountLab(lab.dataset.lab, lab.querySelector('.lab-body'));
+  if (lab) mountExperiment(lab.querySelector('.lab-body'), week, lab.dataset.lab, labLabels[lab.dataset.lab], (body) => mountLab(lab.dataset.lab, body), escape);
   return active.id;
 }

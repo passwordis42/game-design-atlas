@@ -1,4 +1,5 @@
 const phaseLabels = { playing: '游玩中', failed: '失败', complete: '已完成' };
+const metric = (label, value) => ({ label, value });
 
 export function initialPrototypeState() {
   return { phase: 'playing', distance: 80, box: true, count: 0, doorOpen: false };
@@ -81,6 +82,8 @@ export function prototypeLab(root) {
   const log = root.querySelector('.prototype-log');
   let rules;
   let state = initialPrototypeState();
+  let parameters = [];
+  let attempts = [];
 
   function display() {
     summary.innerHTML = `<span>状态 <strong>${phaseLabels[state.phase]}</strong></span><span>距离 <strong>${state.distance} px</strong></span><span>盒子 <strong>${state.box ? '在场' : '已移除'}</strong></span><span>计数 <strong>${state.count}</strong></span><span>门 <strong>${state.doorOpen ? '开' : '关'}</strong></span>`;
@@ -95,6 +98,17 @@ export function prototypeLab(root) {
     const fields = new FormData(form);
     rules = { ...Object.fromEntries(fields), pickupDistance: Number(fields.get('pickupDistance')),
       resetBox: fields.has('resetBox'), resetCount: fields.has('resetCount'), resetDoor: fields.has('resetDoor') };
+    const selectedLabel = (name) => form.elements[name].selectedOptions[0].textContent.trim();
+    parameters = [
+      metric('拾取触发', selectedLabel('pickupTrigger')),
+      metric('距离界线', selectedLabel('distanceComparison') + ' ' + rules.pickupDistance + ' px'),
+      metric('拾取允许状态', selectedLabel('pickupPhase')),
+      metric('拾取动作', selectedLabel('pickupAction')),
+      metric('开门条件', selectedLabel('doorCondition')),
+      metric('门的动作', selectedLabel('doorAction')),
+      metric('重开恢复对象', [rules.resetBox && '盒子', rules.resetCount && '计数', rules.resetDoor && '门'].filter(Boolean).join('、') || '只恢复起点和游玩状态')
+    ];
+    attempts = [];
     state = initialPrototypeState();
     controls.disabled = false;
     ruleStatus.textContent = '规则已应用，房间已恢复初始状态。';
@@ -109,6 +123,7 @@ export function prototypeLab(root) {
     const distance = Number(controls.querySelector('[data-distance]').value);
     const result = runPrototypeEvent(state, rules, { type: button.dataset.event, distance });
     state = result.state;
+    attempts.push({ action: button.textContent, distance: state.distance, result: result.message, count: state.count });
     eventStatus.textContent = result.message;
     const entry = document.createElement('li');
     entry.textContent = `${button.textContent}。${result.message} 计数 ${state.count}，盒子${state.box ? '在场' : '已移除'}，门${state.doorOpen ? '开' : '关'}。`;
@@ -117,4 +132,16 @@ export function prototypeLab(root) {
     display();
   });
   display();
+  return { snapshot: () => ({
+    parameters,
+    results: attempts.length ? [
+      metric('试跑事件数', attempts.length),
+      metric('当前房间状态', phaseLabels[state.phase]),
+      metric('当前距离（像素）', state.distance),
+      metric('当前计数', state.count),
+      metric('盒子', state.box ? '在场' : '已移除'),
+      metric('门', state.doorOpen ? '开' : '关'),
+      metric('最近动作轨迹', attempts.slice(-5).map((attempt) => attempt.action + '（' + attempt.distance + ' px，计数 ' + attempt.count + '）' + attempt.result).join('；'))
+    ] : []
+  }) };
 }

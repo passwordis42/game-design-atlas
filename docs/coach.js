@@ -1,6 +1,6 @@
 import { weeks } from './data/curriculum.js';
 import { weekLabel } from './graph.js';
-import { checkpointReady, completeRules, downloadFile, ruledLines } from './records.js?v=guided-2';
+import { checkpointReady, completeRules, downloadFile, ruledLines } from './records.js?v=guided-3';
 
 const providers = [['openai', 'OpenAI'], ['anthropic', 'Claude'], ['deepseek', 'DeepSeek'], ['qwen', 'Qwen']];
 const fields = [
