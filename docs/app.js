@@ -1,8 +1,8 @@
 import { phases, weeks, prerequisites } from './data/curriculum.js';
 import { lessons } from './data/lessons.js';
 import { buildGraph, phaseColors, weekLabel } from './graph.js';
-import { cleanRecords, downloadFile, emptyRecord, mergeWeek, readRecords, verificationReady, writeRecords } from './records.js';
-import { mountCoach } from './coach.js';
+import { cleanRecords, downloadFile, emptyRecord, mergeWeek, readRecords, verificationReady, writeRecords } from './records.js?v=guided-1';
+import { mountCoach } from './coach.js?v=guided-1';
 import { mountStudy } from './study.js';
 import { canFinish } from './study-progress.js';
 
